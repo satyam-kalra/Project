@@ -231,9 +231,7 @@ def main() -> None:
 
     models = {
         "LinearRegression": LinearRegression(),
-        "RandomForest": RandomForestRegressor(
-            n_estimators=300, random_state=42, min_samples_leaf=2
-        ),
+        "RandomForest": RandomForestRegressor(random_state=42),
     }
 
     metrics_records = []
