@@ -6,7 +6,7 @@ import { DRIVER_POST_LIMITS, normalizeContributionInCents } from "@/lib/legal";
 import { prisma } from "@/lib/prisma";
 import { getRouteByKey } from "@/lib/routes";
 
-function fail(message: string) {
+function fail(message: string): never {
   redirect(`/?notice=${encodeURIComponent(message)}`);
 }
 
@@ -18,13 +18,13 @@ export async function registerUser(formData: FormData) {
   const licensePhotoPath = String(formData.get("licensePhotoPath") ?? "").trim();
 
   if (!fullName || !phone) {
-    fail("Name and phone are required.");
+    return fail("Name and phone are required.");
   }
 
   const isDriverRole = role === "DRIVER" || role === "BOTH";
 
   if (isDriverRole && !licensePhotoPath) {
-    fail("Driver license photo path is required for drivers.");
+    return fail("Driver license photo path is required for drivers.");
   }
 
   const user = await prisma.user.upsert({
@@ -83,12 +83,12 @@ export async function postRide(formData: FormData) {
   const isImmediate = formData.get("isImmediate") === "on";
 
   if (!phone || !routeKey || !departureDate || !departureTime) {
-    fail("Please complete all ride fields.");
+    return fail("Please complete all ride fields.");
   }
 
   const route = getRouteByKey(routeKey);
   if (!route) {
-    fail("Route was not found.");
+    return fail("Route was not found.");
   }
 
   const driver = await prisma.user.findUnique({
@@ -97,7 +97,7 @@ export async function postRide(formData: FormData) {
   });
 
   if (!driver) {
-    fail("Create an account before posting rides.");
+    return fail("Create an account before posting rides.");
   }
 
   const canDrive =
@@ -107,7 +107,9 @@ export async function postRide(formData: FormData) {
     driver.driverVerification;
 
   if (!canDrive) {
-    fail("Driver profile must include verification and insurance confirmation.");
+    return fail(
+      "Driver profile must include verification and insurance confirmation.",
+    );
   }
 
   const now = new Date();
@@ -132,11 +134,11 @@ export async function postRide(formData: FormData) {
   ]);
 
   if (todayCount >= DRIVER_POST_LIMITS.perDay) {
-    fail("Daily posting limit reached for this driver account.");
+    return fail("Daily posting limit reached for this driver account.");
   }
 
   if (weekCount >= DRIVER_POST_LIMITS.perWeek) {
-    fail("Weekly posting limit reached for this driver account.");
+    return fail("Weekly posting limit reached for this driver account.");
   }
 
   const contributionInCents = normalizeContributionInCents(
@@ -146,7 +148,7 @@ export async function postRide(formData: FormData) {
 
   const departureAt = new Date(`${departureDate}T${departureTime}:00`);
   if (Number.isNaN(departureAt.getTime())) {
-    fail("Departure date or time is invalid.");
+    return fail("Departure date or time is invalid.");
   }
 
   const ride = await prisma.ride.create({
@@ -184,12 +186,12 @@ export async function requestRideNow(formData: FormData) {
   const seatsNeeded = Number(formData.get("seatsNeeded") ?? 1);
 
   if (!phone || !fullName || !routeKey) {
-    fail("Ride Now requires name, phone, and route.");
+    return fail("Ride Now requires name, phone, and route.");
   }
 
   const route = getRouteByKey(routeKey);
   if (!route) {
-    fail("Route was not found.");
+    return fail("Route was not found.");
   }
 
   const user = await prisma.user.upsert({
@@ -239,16 +241,16 @@ export async function submitRating(formData: FormData) {
   const comment = String(formData.get("comment") ?? "").trim();
 
   if (!rideId || !fromPhone || !toUserId) {
-    fail("Rating requires ride, your phone, and driver profile.");
+    return fail("Rating requires ride, your phone, and driver profile.");
   }
 
   if (stars < 1 || stars > 5) {
-    fail("Rating must be between 1 and 5 stars.");
+    return fail("Rating must be between 1 and 5 stars.");
   }
 
   const fromUser = await prisma.user.findUnique({ where: { phone: fromPhone } });
   if (!fromUser) {
-    fail("Create an account before leaving a rating.");
+    return fail("Create an account before leaving a rating.");
   }
 
   await prisma.rating.upsert({
@@ -293,12 +295,12 @@ export async function submitReport(formData: FormData) {
   const details = String(formData.get("details") ?? "").trim();
 
   if (!rideId || !reporterPhone || !reportedUserId) {
-    fail("Report requires ride id, your phone, and user target.");
+    return fail("Report requires ride id, your phone, and user target.");
   }
 
   const reporter = await prisma.user.findUnique({ where: { phone: reporterPhone } });
   if (!reporter) {
-    fail("Create an account before submitting reports.");
+    return fail("Create an account before submitting reports.");
   }
 
   await prisma.report.create({
