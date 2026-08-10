@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,127 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  RIDER
+  DRIVER
+  BOTH
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ReportType {
+  NO_SHOW
+  UNSAFE_BEHAVIOR
+  FRAUDULENT_LISTING
+}
+
+enum RideStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                    String                @id @default(cuid())
+  fullName              String
+  phone                 String                @unique
+  role                  UserRole              @default(RIDER)
+  phoneVerified         Boolean               @default(false)
+  insuranceConfirmed    Boolean               @default(false)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  driverVerification    DriverVerification?
+  rides                 Ride[]                @relation("DriverRides")
+  ratingsGiven          Rating[]              @relation("RatingsGiven")
+  ratingsReceived       Rating[]              @relation("RatingsReceived")
+  reportsMade           Report[]              @relation("ReportsMade")
+  reportsAgainst        Report[]              @relation("ReportsAgainst")
+  rideNowRequests       RideNowRequest[]
+  audits                AuditLog[]
+}
+
+model DriverVerification {
+  id               String             @id @default(cuid())
+  userId           String             @unique
+  licensePhotoPath String
+  status           VerificationStatus @default(PENDING)
+  reviewedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Ride {
+  id                        String      @id @default(cuid())
+  driverId                  String
+  routeFrom                 String
+  routeTo                   String
+  routeKey                  String
+  distanceKm                Int
+  departureAt               DateTime
+  seatsAvailable            Int
+  suggestedContributionCents Int
+  status                    RideStatus  @default(OPEN)
+  isImmediate               Boolean     @default(false)
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
+  driver                    User        @relation("DriverRides", fields: [driverId], references: [id], onDelete: Cascade)
+  ratings                   Rating[]
+  reports                   Report[]
+}
+
+model RideNowRequest {
+  id          String   @id @default(cuid())
+  riderId     String
+  routeFrom   String
+  routeTo     String
+  routeKey    String
+  seatsNeeded Int
+  createdAt   DateTime @default(now())
+  rider       User     @relation(fields: [riderId], references: [id], onDelete: Cascade)
+}
+
+model Rating {
+  id          String   @id @default(cuid())
+  rideId      String
+  fromUserId  String
+  toUserId    String
+  stars       Int
+  comment     String?
+  createdAt   DateTime @default(now())
+  ride        Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  fromUser    User     @relation("RatingsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User     @relation("RatingsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([rideId, fromUserId, toUserId])
+}
+
+model Report {
+  id           String     @id @default(cuid())
+  rideId        String
+  reporterId    String
+  reportedUserId String
+  type          ReportType
+  details       String?
+  createdAt     DateTime   @default(now())
+  ride          Ride       @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  reporter      User       @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser  User       @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  metadata   String?
+  createdAt  DateTime @default(now())
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
 }
